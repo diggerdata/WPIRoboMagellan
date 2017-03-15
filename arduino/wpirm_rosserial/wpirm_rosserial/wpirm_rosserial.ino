@@ -1,7 +1,16 @@
+#include <Servo.h>
+
+#include <Arduino.h>
+
 
 #include <ros.h>
 
 #include <std_msgs/String.h>
+
+#include "std_msgs/MultiArrayLayout.h"
+#include "std_msgs/MultiArrayDimension.h"
+#include "std_msgs/UInt16MultiArray.h"
+
 /* read a rotary encoder with interrupts
    Encoder hooked up with common to GROUND,
    rightEncoderPinA to pin 2, rightEncoderPinB to pin 4 (or pin 3 see below)
@@ -12,6 +21,10 @@
    to the A & B channel outputs
 
 */
+Servo panServo;
+Servo tiltServo;
+
+int pos = 0;
 
 #define voltageSensorPin  3
 
@@ -31,6 +44,14 @@
 #define LEFT_MOTOR_MIN -127
 #define LEFT_MOTOR_STOP 0
 #define LEFT_MOTOR_MAX 127
+
+#define PAN_SERVO_MIN -90
+#define PAN_SERVO_RESET 90
+#define PAN_SERVO_MAX 90
+
+#define TILT_SERVO_MIN -90
+#define TILT_SERVO_RESET 90
+#define TILT_SERVO_MAX 90
 
 volatile long rightEncoderPos = 0;  //MOTOR 1  - ( -127 - reverse - -1 - 1 - forward - 127)
 volatile long leftEncoderPos = 0;   //MOTOR 2 - ( -127 - reverse - -1 - 1 - forward - 127)
@@ -75,8 +96,30 @@ void onMotorCtrlMsg( const std_msgs::String& msg) {
 
 }
 
+void onPanTiltCtrlMsg( const std_msgs::UInt16MultiArray& msg) {
+  String statusMsg = "OK";
+
+  int pan = msg.data[0];
+  int tilt = msg.data[1];
+
+  if (pan < PAN_SERVO_MIN || pan > PAN_SERVO_MAX) {
+    resetPanTilt();
+    statusMsg = "Pan Servo Error";
+    publishSensorData(statusMsg);
+    return;
+  } else if (tilt < TILT_SERVO_MIN || tilt > TILT_SERVO_MAX) {
+    resetPanTilt();
+    statusMsg = "Tilt Servo Error";
+    publishSensorData(statusMsg);
+    return;
+  }
+  nh.logwarn(msg.data[0]);
+  setPanTilt(pan, tilt);
+
+}
+
 std_msgs::String sensorMsg;
-ros::Publisher sensorTopic("/hercules/sensors", &sensorMsg);
+ros::Publisher sensorTopic("/wpirm/sensors", &sensorMsg);
 
 void publishSensorData(String msg) {
   String sensorData = "";
@@ -108,10 +151,13 @@ int getLeftEncoder() {
   return ceil((localEncoder / ONE_ROTATION) * CIRCUMFERENCE);
 }
 
-ros::Subscriber<std_msgs::String> sub("/hercules/motorCtrl", onMotorCtrlMsg );
+ros::Subscriber<std_msgs::String> sub("/wpirm/motorCtrl", onMotorCtrlMsg );
+ros::Subscriber<std_msgs::UInt16MultiArray> sub1("/wpirm/panTiltCtrl", onPanTiltCtrlMsg );
 
 void setup() {
   delay(10000);
+  panServo.attach(8);
+  tiltServo.attach(9);
 
   pinMode(rightEncoderPinA, INPUT);
   digitalWrite(rightEncoderPinA, HIGH);
@@ -132,6 +178,7 @@ void setup() {
   nh.initNode();
   nh.advertise(sensorTopic);
   nh.subscribe(sub);
+  nh.subscribe(sub1);
   nh.logwarn("Starting...");
 }
 
@@ -189,6 +236,16 @@ void motorSpeed(int left, int right) {
     Serial1.write(0xCE);
     Serial1.write(right);
   }
+}
+
+void resetPanTilt() {
+  panServo.write(PAN_SERVO_RESET);
+  tiltServo.write(TILT_SERVO_RESET);
+}
+
+void setPanTilt(int pan, int tilt) {
+  panServo.write(pan + 90);
+  tiltServo.write(tilt + 90);
 }
 
 float readVoltage() {

@@ -106,14 +106,24 @@ void onPanTiltCtrlMsg( const std_msgs::UInt16MultiArray& msg) {
     resetPanTilt();
     statusMsg = "Pan Servo Error";
     publishSensorData(statusMsg);
+      nh.logwarn("Hello1");
     return;
   } else if (tilt < TILT_SERVO_MIN || tilt > TILT_SERVO_MAX) {
     resetPanTilt();
     statusMsg = "Tilt Servo Error";
     publishSensorData(statusMsg);
+      nh.logwarn("Hello2");
+
     return;
   }
-  nh.logwarn(msg.data[0]);
+    
+
+  String msg_debug = "";
+  char buf[12];
+  msg_debug += pan;
+  msg_debug.toCharArray(buf, 12);
+  buf[msg_debug.length()] = '\0';
+  nh.logwarn(buf);
   setPanTilt(pan, tilt);
 
 }
@@ -173,7 +183,7 @@ void setup() {
 
   attachInterrupt(1, doleftEncoder, CHANGE);
 
-  Serial1.begin(19200);
+//  Serial1.begin(19200);/
   nh.getHardware()->setBaud(57600);
   nh.initNode();
   nh.advertise(sensorTopic);
@@ -215,26 +225,26 @@ void doleftEncoder() {
 }
 
 void motorStop() {
-  Serial1.write((byte)0);
+//  Serial1.write((byte)0);/
 }
 
 void motorSpeed(int left, int right) {
   if (left < 0) {
-    Serial1.write(0xC5);
-    Serial1.write(abs(left));
+//    Serial1.write(0xC5);/
+//    Serial1.write(abs(left));/
   }
   else {
-    Serial1.write(0xC6);
-    Serial1.write(left);
+//    Serial1.write(0xC6);/
+//    Serial1.write(left);/
   }
 
   if (right < 0) {
-    Serial1.write(0xCD);
-    Serial1.write(abs(right));
+//    Serial1.write(0xCD);/
+//    Serial1.write(abs(right/));
   }
   else {
-    Serial1.write(0xCE);
-    Serial1.write(right);
+//    Serial1.write(0xCE);/
+//    Serial1.write(right);/
   }
 }
 

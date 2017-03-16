@@ -9,7 +9,7 @@
 
 #include "std_msgs/MultiArrayLayout.h"
 #include "std_msgs/MultiArrayDimension.h"
-#include "std_msgs/UInt16MultiArray.h"
+#include "std_msgs/Int16MultiArray.h"
 
 /* read a rotary encoder with interrupts
    Encoder hooked up with common to GROUND,
@@ -96,7 +96,7 @@ void onMotorCtrlMsg( const std_msgs::String& msg) {
 
 }
 
-void onPanTiltCtrlMsg( const std_msgs::UInt16MultiArray& msg) {
+void onPanTiltCtrlMsg( const std_msgs::Int16MultiArray& msg) {
   String statusMsg = "OK";
 
   int pan = msg.data[0];
@@ -116,14 +116,15 @@ void onPanTiltCtrlMsg( const std_msgs::UInt16MultiArray& msg) {
 
     return;
   }
-    
 
-  String msg_debug = "";
-  char buf[12];
-  msg_debug += pan;
-  msg_debug.toCharArray(buf, 12);
-  buf[msg_debug.length()] = '\0';
-  nh.logwarn(buf);
+  // Debug output for pan/tilt values
+  char buf[50];
+  String log_out = "Pan: " + String(pan) + " Tilt: " + String(tilt);
+  
+  log_out.toCharArray(buf, 50);
+  buf[log_out.length()] = '\0';
+  nh.loginfo(buf);
+  
   setPanTilt(pan, tilt);
 
 }
@@ -162,7 +163,7 @@ int getLeftEncoder() {
 }
 
 ros::Subscriber<std_msgs::String> sub("/wpirm/motorCtrl", onMotorCtrlMsg );
-ros::Subscriber<std_msgs::UInt16MultiArray> sub1("/wpirm/panTiltCtrl", onPanTiltCtrlMsg );
+ros::Subscriber<std_msgs::Int16MultiArray> sub1("/wpirm/panTiltCtrl", onPanTiltCtrlMsg );
 
 void setup() {
   delay(10000);
@@ -183,7 +184,7 @@ void setup() {
 
   attachInterrupt(1, doleftEncoder, CHANGE);
 
-//  Serial1.begin(19200);/
+  Serial1.begin(19200);
   nh.getHardware()->setBaud(57600);
   nh.initNode();
   nh.advertise(sensorTopic);
@@ -205,7 +206,7 @@ void loop() {
     lastPub = millis();
   }
   nh.spinOnce();
-  delay(2000);
+//  delay(2000);
 }
 
 void dorightEncoder() {
@@ -225,26 +226,26 @@ void doleftEncoder() {
 }
 
 void motorStop() {
-//  Serial1.write((byte)0);/
+  Serial1.write((byte)0);
 }
 
 void motorSpeed(int left, int right) {
   if (left < 0) {
-//    Serial1.write(0xC5);/
-//    Serial1.write(abs(left));/
+    Serial1.write(0xC5);
+    Serial1.write(abs(left));
   }
   else {
-//    Serial1.write(0xC6);/
-//    Serial1.write(left);/
+    Serial1.write(0xC6);
+    Serial1.write(left);
   }
 
   if (right < 0) {
-//    Serial1.write(0xCD);/
-//    Serial1.write(abs(right/));
+    Serial1.write(0xCD);
+    Serial1.write(abs(right));
   }
   else {
-//    Serial1.write(0xCE);/
-//    Serial1.write(right);/
+    Serial1.write(0xCE);
+    Serial1.write(right);
   }
 }
 

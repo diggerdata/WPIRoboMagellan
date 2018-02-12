@@ -1,0 +1,6 @@
+{
+    "terminal.integrated.env.linux": {
+        "PATH": "/home/diggerdata/.platformio/penv/bin:/home/diggerdata/.platformio/penv:/home/diggerdata/bin:/home/diggerdata/.local/bin:/home/diggerdata/ws/gym-gazebo/gym_gazebo/envs/installation/catkin_ws/devel/bin:/opt/ros/kinetic/bin:/home/diggerdata/.nvm/versions/node/v9.1.0/bin:/home/diggerdata/bin:/home/diggerdata/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/usr/local/cuda-8.0/bin:/snap/bin:/usr/lib/jvm/java-8-oracle/bin:/usr/lib/jvm/java-8-oracle/db/bin:/usr/lib/jvm/java-8-oracle/jre/bin:/usr/lib/jvm/java-8-oracle/bin:/usr/lib/jvm/java-8-oracle/db/bin:/usr/lib/jvm/java-8-oracle/jre/bin",
+        "PLATFORMIO_CALLER": "vscode"
+    }
+}

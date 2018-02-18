@@ -10,6 +10,8 @@
 #include <Encoder.h>
 #include "PID.h"
 
+#define HWSERIAL Serial2
+
 // PID setup (kp, ki, kd)
 
 PID rPid = PID(0.1, 0.01, 0);
@@ -38,85 +40,91 @@ char odom[] = "/odom";
 Encoder leftEncoder(ENCODER_L_A, ENCODER_L_B);
 Encoder rightEncoder(ENCODER_R_A, ENCODER_R_B);
 
-long lastRightEncoder = 0;
-long lastLeftEncoder = 0;
-unsigned long lastTime;
+long lastTime = 0;
+double total_xy = 0.0;
+double total_th = 0.0;
+double last_xy = 0.0;
+double last_th = 0.0;
 
 // Current encoder vels 
-double evr = 0.0;
-double evl = 0.0;
+double evx = 0.0;
 double evth = 0.0;
 
 // Motor set vels
 double mvr = 0.0;
 double mvl = 0.0;
 
-
-// TODO: Refactor to use meters and new ticks_to_meters() method.
-void calculate_odom() {
-    long L_ticks, R_ticks;
-    double left_inches, right_inches, inches;
-
-    L_ticks = leftEncoder.read();
-    R_ticks = rightEncoder.read();
-
-    left_inches = (double)L_ticks/TICKS_PER_REV;
-    right_inches = (double)R_ticks/TICKS_PER_REV;
-
-    inches = (left_inches + right_inches) / 2.0;
-
-    theta = (left_inches - right_inches) / WHEEL_BASE;
-    theta -= (double)((int)(theta/TWO_PI))*TWO_PI;
-
-    y = inches * cos(theta); 
-    x = inches * sin(theta); 
-}
-
-// TODO: Finish this returns: evl and evr
-void calculate_vels() {
-    unsigned long curTime = millis();
-    long difTime = curTime - lastTime;
-    long curRightEncoder = rightEncoder.read();
-    long curLeftEncoder = leftEncoder.read();
-
-      
-
-    lastRightEncoder = curRightEncoder;
-    lastLeftEncoder = curLeftEncoder;
-    lastTime = curTime; 
-}
-
 double ticks_to_meters(long ticks) {
     // Circumference * number of rotations
     return 2.0*PI*WHEEL_RADIUS*((double)ticks/TICKS_PER_REV);
 }
 
-void set_motors() {
-    double rOut = rPid.getOutput();
-    double lOut = lPid.getOutput();
+// TODO: Finish this returns: evl and evr
+void calculate_vels() {
+    long curTime = millis();
+    double dt = (double)curTime/1000 - (double)lastTime/1000;
+    double dth = last_th - theta;
+    double dxy = total_xy - last_xy;
+
+    evx = dxy/dt;
+    evth = dth/dt;
+
+    lastTime = curTime;
+    last_xy = total_xy;
+    last_th = theta;
+}
+
+// TODO: (IMPORTANT!) Redo to use delta everthing
+void calculate_odom() {
+    long L_ticks, R_ticks;
+    double left_meters, right_meters;
+
+    R_ticks = leftEncoder.read();
+    L_ticks = -rightEncoder.read();
+
+    left_meters = ticks_to_meters(L_ticks);
+    right_meters = ticks_to_meters(R_ticks);
+
+    total_xy = (double)(left_meters + right_meters) / 2.0;
+
+    theta = (right_meters - left_meters) / (double)WHEEL_BASE;
+    theta -= (double)((int)(theta/(PI * 2.0)))*(PI * 2.0);
+
+    x = total_xy * cos(theta); 
+    y = total_xy * sin(theta); 
+
+    calculate_vels();
 }
 
 void set_motor(double motor, double speed) {
     if(motor == 0) {
         if (speed < 0) {
-            Serial1.write(0xC5);
-            Serial1.write((byte)abs(speed));
+            HWSERIAL.write(0xC5);
+            HWSERIAL.write((byte)abs(speed));
         } 
         else {
-            Serial1.write(0xC6);
-            Serial1.write((byte)speed);
+            HWSERIAL.write(0xC6);
+            HWSERIAL.write((byte)speed);
         }
     }
     else if(motor == 1) {
         if (speed < 0) {
-            Serial1.write(0xCD);
-            Serial1.write((byte)abs(speed));
+            HWSERIAL.write(0xCD);
+            HWSERIAL.write((byte)abs(speed));
         } 
         else {
-            Serial1.write(0xCE);
-            Serial1.write((byte)speed);
+            HWSERIAL.write(0xCE);
+            HWSERIAL.write((byte)speed);
         }
     }
+}
+
+void set_motors() {
+    double rOut = rPid.getOutput();
+    double lOut = lPid.getOutput();
+
+    set_motor(0, mvr*127);
+    set_motor(1, mvl*127);
 }
 
 // ROS setup
@@ -130,49 +138,56 @@ void cmd_vel_cb(const geometry_msgs::Twist& msg) {
 
 // ROS subscribers and transform publishers
 geometry_msgs::TransformStamped t;
-nav_msgs::Odometry odom;
+nav_msgs::Odometry o;
 
-tf::TransformBroadcaster broadcaster
+tf::TransformBroadcaster broadcaster;
 
 ros::Subscriber<geometry_msgs::Twist> sub("cmd_vel", cmd_vel_cb);
-ros::Publisher odom("odom", &odom);
-
-;
+ros::Publisher odomPub("odom", &o);
 
 // Tf broadcaster
 void transform_broadcaster() {
     calculate_odom();
 
     // tf odom->base_link
-    t.header.frame_id = odom;
-    odom.header.frame_id = odom;
-    t.child_frame_id = base_link;
-    odom.child_frame_id = base_link;
+    t.header.frame_id = "base_link";
+    o.header.frame_id = "odom";
+    t.child_frame_id = "odom";
+    o.child_frame_id = "base_link";
 
     geometry_msgs::Quaternion odom_quat = tf::createQuaternionFromYaw(theta);
     
     t.transform.translation.x = x;
     t.transform.translation.y = y;
 
-    odom.pose.pose.position.x = x;
-    odom.pose.pose.position.y = y;
-    odom.pose.pose.position.z = 0.0;
-    odom.pose.pose.orientation = odom_quat;
+    o.pose.pose.position.x = x;
+    o.pose.pose.position.y = y;
+    o.pose.pose.position.z = 0.0;
+    o.pose.pose.orientation = odom_quat;
+
+    o.twist.twist.linear.x = evx;
+    o.twist.twist.linear.y = 0.0;
+    o.twist.twist.linear.z = 0.0;
+    
+    o.twist.twist.angular.x = 0.0;
+    o.twist.twist.angular.y = 0.0;
+    o.twist.twist.angular.z = evth;
     
     t.transform.rotation = odom_quat;
     t.header.stamp = nh.now();
-    odom.header.stamp = nh.now();
+    o.header.stamp = nh.now();
     
+    odomPub.publish(&o);
     broadcaster.sendTransform(t);
 }
 
 void setup() {
     nh.initNode();
-    nh.advertise(odom);
+    nh.advertise(odomPub);
     nh.subscribe(sub);
     broadcaster.init(nh);
 
-    Serial1.begin(19200);
+    HWSERIAL.begin(19200);
 
     // PID set params
     rPid.setOutputLimits(-100,100);
@@ -183,6 +198,7 @@ void setup() {
 
 void loop() {
     transform_broadcaster();
+    set_motors();
     nh.spinOnce();
     delay(10);
 }
